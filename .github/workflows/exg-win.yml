@@ -42,6 +42,36 @@ jobs:
             exit 1
           fi
 
+      - name: Free up runner disk space.
+        shell: pwsh
+        run: |
+          Get-PSDrive C | Format-Table Used,Free
+          $dirs = @(
+            'C:\Android',
+            'C:\hostedtoolcache\windows\CodeQL',
+            'C:\hostedtoolcache\windows\go',
+            'C:\hostedtoolcache\windows\PyPy',
+            'C:\hostedtoolcache\windows\Ruby',
+            'C:\hostedtoolcache\windows\node',
+            'C:\hostedtoolcache\windows\Java_Temurin-Hotspot_jdk',
+            'C:\ghcup',
+            'C:\Miniconda',
+            'C:\vcpkg',
+            'C:\rtools45',
+            'C:\SeleniumWebDrivers',
+            'C:\selenium',
+            'C:\Program Files\PostgreSQL',
+            'C:\Program Files\MongoDB',
+            'C:\Program Files\MySQL'
+          )
+          foreach ($dir in $dirs) {
+            if (Test-Path $dir) {
+              cmd /c rmdir /s /q "$dir"
+            }
+          }
+          Get-PSDrive C | Format-Table Used,Free
+          exit 0
+
       - name: Prepare directories.
         run: |
           mkdir %userprofile%\TBuild\Libraries
@@ -120,22 +150,30 @@ jobs:
           restore-keys: ${{ runner.OS }}-x64-qt-
 
       - name: Libraries.
+        id: libs
         run: |
           %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat skip-release silent
 
       - name: Free up some disk space.
+        if: ${{ !cancelled() && steps.libs.outcome != 'skipped' }}
         shell: bash
-        run: find $LibrariesPath '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -name '*.pc' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' -o -path '*/nv-codec-headers/*' ')' -type f ')' -o -empty ')' -delete
+        run: |
+          df -h /c
+          find $LibrariesPath '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -name '*.pc' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' -o -path '*/nv-codec-headers/*' -o -path '*/tdesktop_rust/out/*' ')' -type f ')' -o -empty ')' -delete
+          if [ "${{ steps.libs.outcome }}" != "success" ]; then
+            rm -f $LibrariesPath/cache_keys/tlottie $LibrariesPath/cache_keys/wallet-engine $LibrariesPath/cache_keys/tdesktop_rust
+          fi
+          df -h /c
 
       - name: Save ThirdParty cache.
-        if: steps.cache-third-party.outputs.cache-hit != 'true'
+        if: ${{ !cancelled() && steps.libs.outcome != 'skipped' && steps.cache-third-party.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v6
         with:
           path: ${{ env.TBUILD }}\ThirdParty
-          key: ${{ steps.cache-third-party.outputs.cache-primary-key }}
+          key: ${{ steps.cache-third-party.outputs.cache-primary-key }}${{ steps.libs.outcome != 'success' && format('-partial-{0}', github.run_id) || '' }}
 
       - name: Save Libraries cache.
-        if: steps.cache-libs.outputs.cache-hit != 'true'
+        if: ${{ !cancelled() && steps.libs.outcome != 'skipped' && steps.cache-libs.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v6
         with:
           path: |
@@ -144,16 +182,16 @@ jobs:
             !${{ env.LibrariesPath }}\[qQ]t[_-]*
             ${{ env.LibrariesPath }}\cache_keys\*
             !${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
-          key: ${{ steps.cache-libs.outputs.cache-primary-key }}
+          key: ${{ steps.cache-libs.outputs.cache-primary-key }}${{ steps.libs.outcome != 'success' && format('-partial-{0}', github.run_id) || '' }}
 
       - name: Save Qt cache.
-        if: steps.cache-qt.outputs.cache-hit != 'true'
+        if: ${{ !cancelled() && steps.libs.outcome != 'skipped' && steps.cache-qt.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v6
         with:
           path: |
             ${{ env.LibrariesPath }}\[qQ]t[_-]*
             ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
-          key: ${{ steps.cache-qt.outputs.cache-primary-key }}
+          key: ${{ steps.cache-qt.outputs.cache-primary-key }}${{ steps.libs.outcome != 'success' && format('-partial-{0}', github.run_id) || '' }}
 
       - name: Telegram Desktop build.
         env:
