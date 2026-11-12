@@ -1,0 +1,52 @@
+__id__ = "commands"
+__name__ = "Commands"
+__version__ = "1.0"
+
+from android_utils import run_on_ui_thread
+from base_plugin import BasePlugin, HookResult, HookStrategy, MenuItemData, MenuItemType
+from client_utils import get_user_config, run_on_queue, send_message, send_request
+from java.util import ArrayList
+from org.telegram.messenger import AndroidUtilities, LocaleController, UserConfig
+from org.telegram.tgnet import TLRPC
+from ui.alert import AlertDialogBuilder
+from ui.bulletin import BulletinHelper
+
+
+class Commands(BasePlugin):
+    def on_plugin_load(self):
+        self.add_on_send_message_hook(priority=10)
+        self.add_hook("TL_messages_readHistory")
+        self.add_menu_item(MenuItemData(
+            menu_type=MenuItemType.MESSAGE_CONTEXT_MENU, text="Message id", icon="msg_info",
+            condition="message != null && message.isOut()",
+            on_click=lambda ctx: BulletinHelper.show_info(str(ctx.get("message").getId()))))
+        self.add_menu_item(MenuItemData(
+            menu_type=MenuItemType.DRAWER_MENU, text="About",
+            on_click=lambda ctx: AlertDialogBuilder(None).set_title("About").set_message(
+                "v1").set_positive_button("OK", lambda builder, which: builder.dismiss()).show()))
+
+    def on_send_message_hook(self, account, params):
+        text = params.message or ""
+        if text == ".ping":
+            send_message({"peer": params.peer, "message": "**pong** from %d" % (
+                get_user_config().getClientUserId())}, parse_mode="markdown")
+            return HookResult(strategy=HookStrategy.CANCEL)
+        if text == ".search":
+            req = TLRPC.TL_messages_search()
+            req.q = "x"
+            req.filter = TLRPC.TL_inputMessagesFilterEmpty()
+            send_request(req, lambda response, error: run_on_ui_thread(
+                lambda: BulletinHelper.show_success("found %s" % response)))
+            return HookResult(strategy=HookStrategy.CANCEL)
+        if text == ".dp":
+            items = ArrayList()
+            items.add(AndroidUtilities.dp(8))
+            items.add(UserConfig.selectedAccount)
+            params.message = "%s %s" % (items, LocaleController.getString("Hello", 0))
+            return HookResult(strategy=HookStrategy.MODIFY_FINAL, params=params)
+        return HookResult()
+
+    def pre_request_hook(self, request_name, account, request):
+        if request_name == "TL_messages_readHistory":
+            return HookResult(strategy=HookStrategy.CANCEL)
+        return HookResult()

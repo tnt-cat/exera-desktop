@@ -1,0 +1,37 @@
+__id__ = "deep"
+__name__ = "Deep"
+
+from android.widget import LinearLayout, TextView
+from base_plugin import BasePlugin, HookFilter, MenuItemData, MenuItemType, MethodReplacement
+from hook_utils import find_class
+from java import dynamic_proxy, jclass
+from org.telegram.ui import ChatActivity
+
+
+class Listener(dynamic_proxy(jclass("android.view.View$OnClickListener"))):
+    def onClick(self, view):
+        pass
+
+
+class NoSwipe(MethodReplacement):
+    def replace_hooked_method(self, param):
+        return False
+
+
+class Deep(BasePlugin):
+    def on_plugin_load(self):
+        self.seen = []
+        cell = find_class("org.telegram.ui.Cells.ChatMessageCell")
+        self.hook_all_methods(cell, "setMessageObject", after=self.on_set,
+                              after_filters=[HookFilter.ArgumentNotNull(0)])
+        method = ChatActivity.getClass().getDeclaredMethod("isSwipeBackEnabled", object)
+        self.hook_method(method, NoSwipe())
+        self.add_menu_item(MenuItemData(
+            menu_type=MenuItemType.CHAT_ACTION_MENU, text="Panel", on_click=self.panel))
+
+    def on_set(self, param):
+        self.seen.append(param.args[0])
+
+    def panel(self, ctx):
+        layout = LinearLayout(ctx.get("context"))
+        layout.addView(TextView(ctx.get("context")))

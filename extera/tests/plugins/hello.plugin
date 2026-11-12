@@ -1,0 +1,28 @@
+__id__ = "hello_plugin"
+__name__ = "Hello"
+__description__ = "Example"
+__author__ = "@me"
+__version__ = "1.0.0"
+__icon__ = "msg_retry"
+__app_version__ = ">=13.1.1"
+
+from base_plugin import BasePlugin, HookResult, HookStrategy
+from ui.settings import Header, Switch
+
+
+class HelloPlugin(BasePlugin):
+    def on_plugin_load(self):
+        self.add_on_send_message_hook()
+
+    def create_settings(self):
+        return [Header(text="Settings"), Switch(key="enabled", text="Enabled", default=True,
+                                                on_change=self.changed)]
+
+    def changed(self, value):
+        self.log("enabled=%s" % value)
+
+    def on_send_message_hook(self, account, params):
+        if self.get_setting("enabled", True) and isinstance(params.message, str):
+            params.message += " ok"
+            return HookResult(strategy=HookStrategy.MODIFY, params=params)
+        return HookResult()

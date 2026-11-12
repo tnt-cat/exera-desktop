@@ -6,6 +6,7 @@ on:
       - exg
     paths-ignore:
       - 'docs/**'
+      - 'extera/**'
       - '**.md'
       - 'changelog.txt'
       - 'LEGAL'
