@@ -1,4 +1,4 @@
-name: exteraGram Windows.
+name: extera Windows.
 
 on:
   push:
@@ -24,7 +24,7 @@ jobs:
 
     env:
       PREPARE_PATH: "Telegram/build/prepare/prepare.py"
-      ARTIFACT_NAME: "exteraGram Desktop x64 Debug"
+      ARTIFACT_NAME: "extera Desktop x64 Debug"
 
     defaults:
       run:
@@ -216,7 +216,7 @@ jobs:
         run: |
           set OUT=%TBUILD%\%REPO_NAME%\out\Debug
           mkdir artifact
-          move %OUT%\Telegram.exe artifact/
+          move %OUT%\extera.exe artifact/
 
       - uses: actions/upload-artifact@v7
         name: Upload artifact.

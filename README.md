@@ -1,3 +1,13 @@
+# extera Desktop
+
+An unofficial desktop port of exteraGram features and its plugin system, based on [Telegram Desktop](https://github.com/telegramdesktop/tdesktop) 7.3.5.
+
+This project is not affiliated with Telegram or the exteraGram team. Work in progress.
+
+The original Telegram Desktop README follows.
+
+---
+
 # [Telegram Desktop][telegram_desktop] – Official Messenger
 
 This is the complete source code and the build instructions for the official [Telegram][telegram] messenger desktop client, based on the [Telegram API][telegram_api] and the [MTProto][telegram_proto] secure protocol.

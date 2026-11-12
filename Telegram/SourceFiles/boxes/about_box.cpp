@@ -36,7 +36,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace {
 
 rpl::producer<TextWithEntities> Text1() {
-	return tr::lng_about_text1(
+	return tr::lng_about_extera(
 		lt_api_link,
 		tr::lng_about_text1_api(tr::url(u"https://core.telegram.org/api"_q)),
 		tr::marked);
@@ -47,11 +47,11 @@ rpl::producer<TextWithEntities> Text2() {
 		lt_gpl_link,
 		rpl::single(tr::link(
 			"GNU GPL",
-			"https://github.com/telegramdesktop/tdesktop/blob/master/LICENSE")),
+			"https://github.com/tnt-cat/exera-desktop/blob/exg/LICENSE")),
 		lt_github_link,
 		rpl::single(tr::link(
 			"GitHub",
-			"https://github.com/telegramdesktop/tdesktop")),
+			"https://github.com/tnt-cat/exera-desktop")),
 		tr::marked);
 }
 
