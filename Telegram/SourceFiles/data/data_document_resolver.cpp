@@ -18,6 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_document_media.h"
 #include "data/data_file_click_handler.h"
 #include "data/data_session.h"
+#include "extera/extera_plugins_box.h"
 #include "history/view/media/history_view_gif.h"
 #include "history/history.h"
 #include "history/history_item.h"
@@ -284,6 +285,10 @@ void ResolveDocument(
 			showDocument();
 		}
 	} else {
+		if (controller
+			&& Extera::OpenPluginDocument(controller, document, item)) {
+			return;
+		}
 		document->saveFromDataSilent();
 		const auto image = CheckImageOpenInApp(
 			document,

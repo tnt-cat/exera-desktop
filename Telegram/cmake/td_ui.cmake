@@ -59,6 +59,7 @@ set(style_files
     ui/controls/location_picker.style
     calls/calls.style
     export/view/export.style
+    extera/extera.style
     info/info.style
     info/profile/info_profile_actions.style
     info/profile/info_profile_top_bar.style

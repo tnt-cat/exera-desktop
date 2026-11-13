@@ -1,0 +1,135 @@
+/*
+This file is part of extera Desktop,
+an unofficial exteraGram build for PC based on Telegram Desktop.
+
+For license and copyright information please follow this link:
+https://github.com/tnt-cat/exera-desktop/blob/exg/LEGAL
+*/
+using "ui/basic.style";
+using "ui/widgets/widgets.style";
+using "ui/layers/layers.style";
+
+exteraCardBg: windowBgOver;
+exteraCardRadius: 12px;
+exteraCardMargin: margins(12px, 0px, 12px, 10px);
+exteraCardLineMargin: margins(14px, 0px, 14px, 0px);
+exteraListSkip: 10px;
+
+exteraToggleRowHeight: 56px;
+exteraToggleRowSingleHeight: 46px;
+exteraToggleRowPadding: margins(14px, 10px, 14px, 10px);
+exteraToggleRowSkip: 12px;
+exteraToggleRowAboutTop: 20px;
+exteraToggleRowTitle: TextStyle(semiboldTextStyle) {
+	font: font(14px semibold);
+}
+exteraToggleRowAbout: TextStyle(defaultTextStyle) {
+	font: font(12px);
+}
+exteraToggle: Toggle(defaultToggle) {
+	toggledBg: windowBgOver;
+	untoggledBg: windowBgOver;
+}
+exteraToggleActive: Toggle(defaultToggle) {
+	toggledBg: windowBgActive;
+	toggledFg: windowFgActive;
+	untoggledBg: windowBgActive;
+	untoggledFg: windowFgActive;
+}
+
+exteraPluginAbout: FlatLabel(defaultFlatLabel) {
+	minWidth: 100px;
+	align: align(topleft);
+	textFg: windowFg;
+	style: TextStyle(defaultTextStyle) {
+		font: font(13px);
+		lineHeight: 19px;
+	}
+}
+exteraPluginAboutMargin: margins(14px, 0px, 14px, 10px);
+exteraPluginError: FlatLabel(exteraPluginAbout) {
+	textFg: attentionButtonFg;
+}
+exteraPluginNote: FlatLabel(exteraPluginAbout) {
+	textFg: windowSubTextFg;
+}
+
+exteraPluginButtonsHeight: 44px;
+exteraPluginButtonsSkip: 6px;
+exteraPluginButton: IconButton(defaultIconButton) {
+	width: 40px;
+	height: 44px;
+
+	rippleAreaPosition: point(2px, 4px);
+	rippleAreaSize: 36px;
+	ripple: defaultRippleAnimation;
+}
+exteraPluginShare: IconButton(exteraPluginButton) {
+	icon: icon {{ "menu/share", menuIconFg }};
+	iconOver: icon {{ "menu/share", menuIconFgOver }};
+}
+exteraPluginOpen: IconButton(exteraPluginButton) {
+	icon: icon {{ "menu/new_window", menuIconFg }};
+	iconOver: icon {{ "menu/new_window", menuIconFgOver }};
+}
+exteraPluginPin: IconButton(exteraPluginButton) {
+	icon: icon {{ "menu/pin", menuIconFg }};
+	iconOver: icon {{ "menu/pin", menuIconFgOver }};
+}
+exteraPluginUnpin: IconButton(exteraPluginButton) {
+	icon: icon {{ "menu/unpin", menuIconFg }};
+	iconOver: icon {{ "menu/unpin", menuIconFgOver }};
+}
+exteraPluginSettings: IconButton(exteraPluginButton) {
+	icon: icon {{ "menu/settings", menuIconFg }};
+	iconOver: icon {{ "menu/settings", menuIconFgOver }};
+}
+exteraPluginDelete: IconButton(exteraPluginButton) {
+	icon: icon {{ "menu/delete", attentionButtonFg }};
+	iconOver: icon {{ "menu/delete", attentionButtonFgOver }};
+}
+
+exteraBoxInfo: IconButton(boxTitleClose) {
+	icon: icon {{ "menu/info", boxTitleCloseFg }};
+	iconOver: icon {{ "menu/info", boxTitleCloseFgOver }};
+}
+exteraBoxSearch: IconButton(boxTitleClose) {
+	icon: icon {{ "menu/search", boxTitleCloseFg }};
+	iconOver: icon {{ "menu/search", boxTitleCloseFgOver }};
+}
+exteraBoxOpen: IconButton(boxTitleClose) {
+	icon: icon {{ "menu/new_window", boxTitleCloseFg }};
+	iconOver: icon {{ "menu/new_window", boxTitleCloseFgOver }};
+}
+exteraSearchMargin: margins(24px, 0px, 24px, 10px);
+
+exteraInstallIconSize: 72px;
+exteraInstallIconMargin: margins(0px, 20px, 0px, 14px);
+exteraInstallIcon: icon {{ "menu/customize", windowFgActive }};
+exteraInstallName: FlatLabel(defaultFlatLabel) {
+	minWidth: 100px;
+	align: align(top);
+	textFg: windowBoldFg;
+	style: TextStyle(semiboldTextStyle) {
+		font: font(17px semibold);
+	}
+}
+exteraInstallNameMargin: margins(24px, 0px, 24px, 4px);
+exteraInstallVersion: FlatLabel(defaultFlatLabel) {
+	minWidth: 100px;
+	align: align(top);
+	textFg: windowSubTextFg;
+	style: TextStyle(defaultTextStyle) {
+		font: font(13px);
+	}
+}
+exteraInstallVersionMargin: margins(24px, 0px, 24px, 16px);
+exteraInstallTextMargin: margins(14px, 10px, 14px, 10px);
+exteraInstallStatus: FlatLabel(exteraPluginAbout) {
+	style: TextStyle(semiboldTextStyle) {
+		font: font(13px semibold);
+	}
+}
+exteraInstallStatusMargin: margins(14px, 10px, 14px, 2px);
+exteraInstallReasonMargin: margins(14px, 0px, 14px, 10px);
+exteraInstallCheckMargin: margins(24px, 4px, 24px, 8px);

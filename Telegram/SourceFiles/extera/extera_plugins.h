@@ -22,6 +22,9 @@ void StartPlugins();
 [[nodiscard]] QString PluginsLog();
 [[nodiscard]] QString PluginsFolder();
 
+[[nodiscard]] bool PluginsOption(const QString &key);
+void SetPluginsOption(const QString &key, bool value);
+
 [[nodiscard]] bool RussianInterface();
 [[nodiscard]] QString Phrase(const QString &en, const QString &ru);
 

@@ -28,6 +28,8 @@ https://github.com/tnt-cat/exera-desktop/blob/exg/LEGAL
 #include "styles/style_layers.h"
 #include "styles/style_settings.h"
 
+#include <QtCore/QDir>
+#include <QtCore/QFile>
 #include <QtCore/QJsonArray>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QMutex>
@@ -46,6 +48,26 @@ std::atomic<qint64> SelfId = 0;
 base::weak_ptr<Main::Session> LastSession;
 std::map<int, QPointer<Ui::GenericBox>> Alerts;
 bool SendingFromPlugin = false;
+QJsonObject Options;
+
+[[nodiscard]] QString OptionsPath() {
+	return cWorkingDir() + u"extera/data/options.json"_q;
+}
+
+void ReadOptions() {
+	auto file = QFile(OptionsPath());
+	if (file.open(QIODevice::ReadOnly)) {
+		Options = QJsonDocument::fromJson(file.readAll()).object();
+	}
+}
+
+void WriteOptions() {
+	QDir().mkpath(cWorkingDir() + u"extera/data"_q);
+	auto file = QFile(OptionsPath());
+	if (file.open(QIODevice::WriteOnly)) {
+		file.write(QJsonDocument(Options).toJson(QJsonDocument::Compact));
+	}
+}
 
 void AddLog(const QString &text) {
 	LOG(("Plugins: %1").arg(text));
@@ -272,7 +294,24 @@ QString PluginsFolder() {
 	return cWorkingDir() + u"extera/plugins"_q;
 }
 
+bool PluginsOption(const QString &key) {
+	const auto value = Options.value(key);
+	return value.isBool() ? value.toBool() : (key != u"safe_mode"_q);
+}
+
+void SetPluginsOption(const QString &key, bool value) {
+	Options[key] = value;
+	WriteOptions();
+	if (key == u"engine"_q || key == u"safe_mode"_q) {
+		PluginsRequest(u"set_mode"_q, QJsonObject{
+			{ u"engine_on"_q, PluginsOption(u"engine"_q) },
+			{ u"safe_mode"_q, PluginsOption(u"safe_mode"_q) },
+		});
+	}
+}
+
 void StartPlugins() {
+	ReadOptions();
 	const auto runtime = cExeDir() + u"python"_q;
 	const auto sdk = cExeDir() + u"extera/sdk"_q;
 	if (!Python::Start(runtime, sdk, HostCall)) {
@@ -286,6 +325,8 @@ void StartPlugins() {
 		{ u"plugins_dir"_q, PluginsFolder() },
 		{ u"data_dir"_q, cWorkingDir() + u"extera/data"_q },
 		{ u"ru"_q, RussianInterface() },
+		{ u"engine_on"_q, PluginsOption(u"engine"_q) },
+		{ u"safe_mode"_q, PluginsOption(u"safe_mode"_q) },
 	});
 }
 
