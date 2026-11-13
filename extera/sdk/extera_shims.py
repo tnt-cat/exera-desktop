@@ -151,7 +151,7 @@ SHIMS.update({
 for _name in ("MessagesController", "MessagesStorage", "NotificationCenter", "FileLoader",
               "MediaDataController", "ContactsController", "AccountInstance", "MediaController",
               "NotificationsController", "DownloadController", "LocationController",
-              "SecretChatHelper", "NotificationsSettings"):
+              "SecretChatHelper"):
     SHIMS["org.telegram.messenger." + _name] = Static(_name)
 SHIMS["org.telegram.tgnet.ConnectionsManager"] = Static("ConnectionsManager")
 

@@ -1,3 +1,4 @@
+import contextlib
 import queue
 import threading
 
@@ -68,6 +69,11 @@ def _account(account):
     return get_selected_account() if account is None else account
 
 
+@contextlib.contextmanager
+def account_scope(account):
+    yield _account(account)
+
+
 def get_last_fragment():
     return HostObject("Fragment", get_selected_account())
 
@@ -90,7 +96,10 @@ get_location_controller = _getter("org.telegram.messenger.LocationController")
 get_media_data_controller = _getter("org.telegram.messenger.MediaDataController")
 get_notification_center = _getter("org.telegram.messenger.NotificationCenter")
 get_notifications_controller = _getter("org.telegram.messenger.NotificationsController")
-get_notifications_settings = _getter("org.telegram.messenger.NotificationsSettings")
+
+def get_notifications_settings(account=None):
+    return HostObject("NotificationsSettings", _account(account))
+
 get_secret_chat_helper = _getter("org.telegram.messenger.SecretChatHelper")
 get_user_config = _getter("org.telegram.messenger.UserConfig")
 

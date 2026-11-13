@@ -84,11 +84,34 @@ class HookFilter(enum.Enum):
         return (kind,) + args
 
     ArgumentEqual = staticmethod(lambda index, value: ("arg_eq", index, value))
+    ArgumentNotEqual = staticmethod(lambda index, value: ("arg_ne", index, value))
     ArgumentNotNull = staticmethod(lambda index: ("arg_not_null", index))
     ArgumentIsNull = staticmethod(lambda index: ("arg_null", index))
     ArgumentIsTrue = staticmethod(lambda index: ("arg_eq", index, True))
     ArgumentIsFalse = staticmethod(lambda index: ("arg_eq", index, False))
-    ArgumentIsInstanceOf = staticmethod(lambda index, cls: ("arg_instance", index, cls))
+    ArgumentIsInstanceOf = staticmethod(lambda index, clazz: ("arg_instance", index, clazz))
+    ResultEqual = staticmethod(lambda value: ("result_eq", None, value))
+    ResultNotEqual = staticmethod(lambda value: ("result_ne", None, value))
+    ResultIsInstanceOf = staticmethod(lambda clazz: ("result_instance", None, clazz))
+    Condition = staticmethod(lambda condition, object=None: ("condition", None, condition, object))
+    Or = staticmethod(lambda *filters: ("or", None, filters))
+
+    @property
+    def filter_data(self):
+        return HookFilterData(self.value)
+
+
+@dataclass
+class HookFilterData:
+    filter_type: str
+    arg_index: Optional[int] = None
+    or_filters: Optional[Any] = None
+    mvel_expression: Optional[str] = None
+    instance_of: Optional[Any] = None
+    object: Any = None
+
+    def to_java_filter(self):
+        return self
 
 
 def _passes(filters, param):
@@ -102,10 +125,24 @@ def _passes(filters, param):
         elif item == HookFilter.RESULT_IS_FALSE:
             ok = param.result is False
         elif isinstance(item, tuple):
-            value = param.args[item[1]] if item[1] < len(param.args) else None
             kind = item[0]
-            if kind == "arg_eq":
+            if kind == "or":
+                ok = any(_passes([entry], param) for entry in item[2])
+            elif kind == "condition":
+                ok = eval_condition(item[2], {"param": param, "result": param.result,
+                                              "object": item[3], "this": param.thisObject})
+            elif kind.startswith("result_"):
+                value = param.result
+            elif item[1] >= len(param.args):
+                return False
+            else:
+                value = param.args[item[1]]
+            if kind in ("or", "condition"):
+                pass
+            elif kind in ("arg_eq", "result_eq"):
                 ok = value == item[2]
+            elif kind in ("arg_ne", "result_ne"):
+                ok = value != item[2]
             elif kind == "arg_not_null":
                 ok = value is not None
             elif kind == "arg_null":

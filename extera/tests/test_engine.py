@@ -146,14 +146,23 @@ class EngineTest(unittest.TestCase):
         self.assertNotIn("bad", engine.plugins)
 
     def test_text_formatting(self):
-        parsed = parse_markdown("a **b** `c` [d](http://e) 😀 ~~f~~")
-        self.assertEqual(parsed.text, "a b c d 😀 f")
-        self.assertEqual([(type(e).__name__, e.offset, e.length) for e in parsed.entities], [
-            ("TL_messageEntityBold", 2, 1), ("TL_messageEntityCode", 4, 1),
-            ("TL_messageEntityTextUrl", 6, 1), ("TL_messageEntityStrike", 11, 1)])
+        parsed = parse_markdown("a **b** `c` [d](http://e) 😀 ~~f~~ __g__ _h_")
+        self.assertEqual(parsed.text, "a b c d 😀 f g h")
+        self.assertEqual([(e.type.value, e.offset, e.length) for e in parsed.entities], [
+            ("bold", 2, 1), ("code", 4, 1), ("text_link", 6, 1), ("strikethrough", 11, 1),
+            ("underline", 13, 1), ("italic", 15, 1)])
+        self.assertEqual(type(parsed.entities[2].to_tlrpc_object()).__name__,
+                         "TL_messageEntityTextUrl")
         html = parse_text('<b>x</b> <a href="http://y">z</a><br><blockquote>q</blockquote>')
         self.assertEqual(html["message"], "x z\nq")
+        self.assertEqual([(type(e).__name__, e.offset, e.length) for e in html["entities"]], [
+            ("TL_messageEntityBold", 0, 1), ("TL_messageEntityTextUrl", 2, 1),
+            ("TL_messageEntityBlockquote", 4, 1)])
         self.assertEqual(html["entities"][1].url, "http://y")
+        markdown = parse_text("*b* __u__ \\*x\\*", "MARKDOWN")
+        self.assertEqual(markdown["message"], "b u *x*")
+        self.assertEqual([type(e).__name__ for e in markdown["entities"]],
+                         ["TL_messageEntityBold", "TL_messageEntityUnderline"])
 
     def test_queue(self):
         done = []

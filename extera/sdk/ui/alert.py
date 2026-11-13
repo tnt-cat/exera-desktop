@@ -54,6 +54,13 @@ class AlertDialogBuilder:
         self.items_listener = listener
         return self
 
+    def _ignored(self, *args, **kwargs):
+        return self
+
+    set_blurred_background = set_dialog_button_color_key = set_dim_enabled = _ignored
+    set_message_text_view_clickable = set_on_back_button_listener = _ignored
+    set_top_animation = set_top_animation_is_new = set_top_drawable = set_top_image = _ignored
+
     def set_view(self, view, height=-2):
         self.view = view
         return self
