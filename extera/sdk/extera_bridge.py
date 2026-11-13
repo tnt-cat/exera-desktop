@@ -15,7 +15,8 @@ try:
 except ImportError:
     _extera_host = None
 
-_state = {"plugins_dir": "", "data_dir": "", "catalog": {}, "ru": False}
+_state = {"plugins_dir": "", "data_dir": "", "catalog": {}, "ru": False,
+          "engine": True, "safe_mode": False}
 _ui_tasks = {}
 _alerts = {}
 _counter = [0]
@@ -142,7 +143,8 @@ def _load_flags():
 
 
 def _save_flags():
-    flags = {key: {"enabled": entry["enabled"]} for key, entry in _state["catalog"].items()}
+    flags = {key: {"enabled": entry["enabled"], "pinned": entry["pinned"]}
+             for key, entry in _state["catalog"].items()}
     os.makedirs(_state["data_dir"], exist_ok=True)
     with open(_catalog_path(), "w", encoding="utf-8") as f:
         json.dump(flags, f)
@@ -154,15 +156,19 @@ def _register(path, enabled=True):
         status, reason = extera_scan.scan(
             f.read(), meta["name"] + " " + os.path.basename(path), _state["ru"])
     entry = {"meta": meta, "path": path, "status": status, "reason": reason,
-             "enabled": enabled, "error": ""}
+             "enabled": enabled, "pinned": False, "error": ""}
     _state["catalog"][meta["id"]] = entry
     return entry
+
+
+def _runs():
+    return _state["engine"] and not _state["safe_mode"]
 
 
 def _activate(entry):
     plugin_id = entry["meta"]["id"]
     entry["error"] = ""
-    if not entry["enabled"]:
+    if not entry["enabled"] or not _runs():
         engine.unload(plugin_id)
         return
     try:
@@ -180,12 +186,14 @@ def _info(entry):
         "author": meta["author"], "description": meta["description"],
         "enabled": entry["enabled"], "status": entry["status"], "reason": entry["reason"],
         "error": entry["error"], "loaded": loaded is not None,
+        "pinned": entry["pinned"], "path": entry["path"],
         "unsupported": list(loaded.unsupported) if loaded else [],
     }
 
 
-def start(plugins_dir, data_dir, ru=False):
-    _state.update(plugins_dir=plugins_dir, data_dir=data_dir, catalog={}, ru=bool(ru))
+def start(plugins_dir, data_dir, ru=False, engine_on=True, safe_mode=False):
+    _state.update(plugins_dir=plugins_dir, data_dir=data_dir, catalog={}, ru=bool(ru),
+                  engine=bool(engine_on), safe_mode=bool(safe_mode))
     os.makedirs(plugins_dir, exist_ok=True)
     extera_engine.set_host(BridgeHost())
     if _extera_host is not None and not isinstance(sys.stdout, _LogWriter):
@@ -200,18 +208,48 @@ def start(plugins_dir, data_dir, ru=False):
         except Exception as e:
             extera_engine.log("Skipped %s: %s" % (name, e))
             continue
-        entry["enabled"] = flags.get(entry["meta"]["id"], {}).get("enabled", True)
+        saved = flags.get(entry["meta"]["id"], {})
+        entry["enabled"] = saved.get("enabled", True)
+        entry["pinned"] = saved.get("pinned", False)
         _activate(entry)
     engine.execute_app_event("app_start")
     return list_plugins()
 
 
 def list_plugins():
-    entries = sorted(_state["catalog"].values(), key=lambda entry: entry["meta"]["name"].lower())
+    entries = sorted(_state["catalog"].values(),
+                     key=lambda entry: (not entry["pinned"], entry["meta"]["name"].lower()))
     return [_info(entry) for entry in entries]
 
 
-def install(path):
+def set_mode(engine_on, safe_mode):
+    _state.update(engine=bool(engine_on), safe_mode=bool(safe_mode))
+    for entry in list(_state["catalog"].values()):
+        _activate(entry)
+    return list_plugins()
+
+
+def about():
+    import _sdk_version
+
+    return {"sdk": _sdk_version.version_str}
+
+
+def inspect(path):
+    meta = extera_engine.read_metadata(path)
+    with open(path, encoding="utf-8") as f:
+        status, reason = extera_scan.scan(
+            f.read(), meta["name"] + " " + os.path.basename(path), _state["ru"])
+    old = _state["catalog"].get(meta["id"])
+    return {
+        "id": meta["id"], "name": meta["name"], "version": meta["version"],
+        "author": meta["author"], "description": meta["description"],
+        "status": status, "reason": reason, "installed": old is not None,
+        "old_version": old["meta"]["version"] if old else "",
+    }
+
+
+def install(path, enable=None):
     meta = extera_engine.read_metadata(path)
     target = os.path.join(_state["plugins_dir"], meta["id"] + ".plugin")
     old = _state["catalog"].get(meta["id"])
@@ -221,19 +259,30 @@ def install(path):
     if os.path.abspath(path) != os.path.abspath(target):
         shutil.copyfile(path, target)
     entry = _register(target)
+    usable = entry["status"] in (extera_scan.WORKS, extera_scan.PARTIAL)
     if old:
         entry["enabled"] = old["enabled"]
+        entry["pinned"] = old["pinned"]
     else:
-        entry["enabled"] = entry["status"] in (extera_scan.WORKS, extera_scan.PARTIAL)
+        entry["enabled"] = usable and (enable is None or bool(enable))
     _activate(entry)
     _save_flags()
     return _info(entry)
 
 
 def set_enabled(id, enabled):
+    if enabled and _state["safe_mode"]:
+        raise extera_engine.PluginError("Plugins cannot be enabled while safe mode is active")
     entry = _state["catalog"][id]
     entry["enabled"] = bool(enabled)
     _activate(entry)
+    _save_flags()
+    return _info(entry)
+
+
+def set_pinned(id, pinned):
+    entry = _state["catalog"][id]
+    entry["pinned"] = bool(pinned)
     _save_flags()
     return _info(entry)
 
@@ -340,6 +389,7 @@ def app_event(event):
 
 _COMMANDS = {
     "start": start, "list": list_plugins, "install": install, "set_enabled": set_enabled,
+    "set_mode": set_mode, "about": about, "inspect": inspect, "set_pinned": set_pinned,
     "delete": delete, "send_hook": send_hook, "settings": settings, "set_setting": set_setting,
     "setting_click": setting_click, "menu": menu, "menu_click": menu_click, "ui_run": ui_run,
     "alert_click": alert_click, "app_event": app_event,

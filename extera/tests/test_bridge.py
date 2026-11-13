@@ -91,6 +91,38 @@ class BridgeTest(unittest.TestCase):
         call("delete", id=info["id"])
         self.assertNotIn(info["id"], {item["id"] for item in call("list")})
 
+    def test_pin_and_modes(self):
+        call("set_pinned", id="hello_plugin", pinned=True)
+        self.assertEqual(call("list")[0]["id"], "hello_plugin")
+        call("set_pinned", id="hello_plugin", pinned=False)
+        self.assertEqual(call("list")[0]["id"], "commands")
+
+        listed = call("set_mode", engine_on=True, safe_mode=True)
+        self.assertFalse(any(item["loaded"] for item in listed))
+        answer = json.loads(extera_bridge.call(
+            "set_enabled", json.dumps({"id": "hello_plugin", "enabled": True})))
+        self.assertFalse(answer["ok"])
+        listed = call("set_mode", engine_on=False, safe_mode=False)
+        self.assertFalse(any(item["loaded"] for item in listed))
+        listed = call("set_mode", engine_on=True, safe_mode=False)
+        self.assertTrue(all(item["loaded"] for item in listed))
+        self.assertEqual(call("about")["sdk"], "1.4.6.3")
+
+    def test_inspect_and_install_choice(self):
+        source = os.path.join(HERE, "plugins", "deep.plugin")
+        info = call("inspect", path=source)
+        self.assertFalse(info["installed"])
+        self.assertEqual(info["status"], "partial")
+        installed = call("install", path=source, enable=False)
+        self.assertFalse(installed["enabled"])
+        again = call("inspect", path=source)
+        self.assertTrue(again["installed"])
+        self.assertEqual(again["old_version"], installed["version"])
+        call("delete", id=installed["id"])
+        installed = call("install", path=source, enable=True)
+        self.assertTrue(installed["enabled"])
+        call("delete", id=installed["id"])
+
     def test_settings(self):
         rows = call("settings", id="hello_plugin")
         self.assertTrue(rows)
