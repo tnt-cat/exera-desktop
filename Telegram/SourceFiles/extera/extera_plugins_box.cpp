@@ -16,15 +16,19 @@ https://github.com/tnt-cat/exera-desktop/blob/exg/LEGAL
 #include "data/data_document.h"
 #include "data/data_file_click_handler.h"
 #include "data/data_file_origin.h"
+#include "data/data_session.h"
 #include "history/history_item.h"
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
+#include "mainwindow.h"
 #include "settings/settings_common.h"
 #include "storage/localimageloader.h"
 #include "storage/storage_media_prepare.h"
 #include "ui/abstract_button.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/chat/attach/attach_prepare.h"
+#include "ui/dynamic_image.h"
+#include "ui/dynamic_thumbnails.h"
 #include "ui/layers/generic_box.h"
 #include "ui/layers/show.h"
 #include "ui/painter.h"
@@ -36,6 +40,7 @@ https://github.com/tnt-cat/exera-desktop/blob/exg/LEGAL
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/fields/input_field.h"
 #include "ui/widgets/labels.h"
+#include "ui/widgets/scroll_area.h"
 #include "ui/widgets/shadow.h"
 #include "ui/wrap/padding_wrap.h"
 #include "ui/wrap/slide_wrap.h"
@@ -52,6 +57,7 @@ https://github.com/tnt-cat/exera-desktop/blob/exg/LEGAL
 
 #include <QtCore/QJsonArray>
 #include <QtGui/QClipboard>
+#include <QtGui/QCursor>
 #include <QtGui/QGuiApplication>
 
 namespace Extera {
@@ -80,6 +86,34 @@ struct ToggleRowState {
 struct Waiting {
 	rpl::lifetime lifetime;
 	bool done = false;
+};
+
+struct IconLoader {
+	std::map<QString, std::vector<DocumentData*>> packs;
+	std::set<QString> requested;
+	rpl::event_stream<QString> loaded;
+};
+
+struct IconState {
+	std::shared_ptr<Ui::DynamicImage> image;
+};
+
+struct IconId {
+	QString pack;
+	int index = -1;
+};
+
+struct PluginRowState {
+	Ui::Text::String title;
+	std::unique_ptr<Ui::ToggleView> toggle;
+};
+
+struct WideState {
+	Fn<void()> rebuildList;
+	Fn<void()> rebuildDetails;
+	QString query;
+	QString selected;
+	std::shared_ptr<IconLoader> icons;
 };
 
 [[nodiscard]] QString StatusText(const QJsonObject &plugin) {
@@ -272,6 +306,110 @@ not_null<Ui::VerticalLayout*> AddCard(
 			st::exteraCardRadius);
 	}, card->lifetime());
 	return card;
+}
+
+[[nodiscard]] Main::Session *UiSession() {
+	const auto window = Core::App().activeWindow();
+	const auto controller = window ? window->sessionController() : nullptr;
+	return controller ? &controller->session() : nullptr;
+}
+
+void RequestPack(std::shared_ptr<IconLoader> icons, const QString &pack) {
+	const auto session = UiSession();
+	if (!session || !icons->requested.emplace(pack).second) {
+		return;
+	}
+	session->api().request(MTPmessages_GetStickerSet(
+		MTP_inputStickerSetShortName(MTP_string(pack)),
+		MTP_int(0) // hash
+	)).done([=](const MTPmessages_StickerSet &result) {
+		result.match([&](const MTPDmessages_stickerSet &data) {
+			auto &list = icons->packs[pack];
+			for (const auto &item : data.vdocuments().v) {
+				list.push_back(session->data().processDocument(item));
+			}
+		}, [](const MTPDmessages_stickerSetNotModified &) {
+		});
+		icons->loaded.fire_copy(pack);
+	}).send();
+}
+
+[[nodiscard]] IconId ParseIcon(const QString &icon) {
+	const auto parts = icon.split(QChar('/'));
+	auto ok = false;
+	const auto index = (parts.size() == 2) ? parts[1].toInt(&ok) : 0;
+	if (!ok || index < 0 || parts[0].isEmpty()) {
+		return {};
+	}
+	return { parts[0], index };
+}
+
+[[nodiscard]] Ui::RpWidget *CreatePluginIcon(
+		not_null<QWidget*> parent,
+		std::shared_ptr<IconLoader> icons,
+		const QString &icon,
+		int size) {
+	const auto parsed = ParseIcon(icon);
+	if (parsed.index < 0) {
+		return nullptr;
+	}
+	const auto pack = parsed.pack;
+	const auto index = parsed.index;
+	const auto widget = Ui::CreateChild<Ui::RpWidget>(parent.get());
+	widget->resize(size, size);
+	widget->setAttribute(Qt::WA_TransparentForMouseEvents);
+	widget->show();
+
+	const auto state = widget->lifetime().make_state<IconState>();
+	const auto apply = [=] {
+		const auto i = icons->packs.find(pack);
+		if (i == end(icons->packs) || index >= int(i->second.size())) {
+			return;
+		}
+		const auto document = i->second[index];
+		state->image = Ui::MakeDocumentThumbnailFit(
+			document,
+			document->stickerSetOrigin());
+		state->image->subscribeToUpdates([=] { widget->update(); });
+		widget->update();
+	};
+	widget->paintRequest(
+	) | rpl::on_next([=] {
+		if (state->image) {
+			auto p = QPainter(widget);
+			p.drawImage(widget->rect(), state->image->image(size));
+		}
+	}, widget->lifetime());
+	icons->loaded.events(
+	) | rpl::filter([=](const QString &name) {
+		return (name == pack);
+	}) | rpl::on_next(apply, widget->lifetime());
+	apply();
+	RequestPack(icons, pack);
+	return widget;
+}
+
+bool AddStickerIcon(
+		not_null<Ui::VerticalLayout*> container,
+		std::shared_ptr<IconLoader> icons,
+		const QString &icon,
+		int size,
+		const style::margins &margin,
+		bool center) {
+	if (ParseIcon(icon).index < 0) {
+		return false;
+	}
+	const auto holder = container->add(
+		object_ptr<Ui::FixedHeightWidget>(container, size),
+		margin);
+	const auto widget = CreatePluginIcon(holder, icons, icon, size);
+	if (center) {
+		holder->widthValue(
+		) | rpl::on_next([=](int width) {
+			widget->move((width - size) / 2, 0);
+		}, widget->lifetime());
+	}
+	return true;
 }
 
 void AddRoundIcon(
@@ -486,6 +624,28 @@ void PluginSettingsBox(
 	box->addButton(tr::lng_close(), [=] { box->closeBox(); });
 }
 
+void ConfirmDelete(
+		std::shared_ptr<Ui::Show> show,
+		const QString &id,
+		const QString &name,
+		Fn<void()> refresh) {
+	auto text = TextWithEntities{ Phrase(
+		u"Are you sure you want to delete "_q,
+		u"Вы уверены, что хотите удалить "_q) };
+	text.append(Ui::Text::Bold(name)).append(u"?"_q);
+	show->showBox(Ui::MakeConfirmBox({
+		.text = std::move(text),
+		.confirmed = [=](Fn<void()> close) {
+			PluginsRequest(u"delete"_q, QJsonObject{ { u"id"_q, id } });
+			refresh();
+			close();
+		},
+		.confirmText = tr::lng_box_delete(),
+		.confirmStyle = &st::attentionBoxButton,
+		.title = Phrase(u"Delete plugin"_q, u"Удалить плагин"_q),
+	}));
+}
+
 void AddPluginButtons(
 		not_null<Ui::VerticalLayout*> card,
 		std::shared_ptr<Ui::Show> show,
@@ -530,21 +690,7 @@ void AddPluginButtons(
 		st::exteraPluginDelete);
 	remove->show();
 	remove->setClickedCallback([=] {
-		auto text = TextWithEntities{ Phrase(
-			u"Are you sure you want to delete "_q,
-			u"Вы уверены, что хотите удалить "_q) };
-		text.append(Ui::Text::Bold(name)).append(u"?"_q);
-		show->showBox(Ui::MakeConfirmBox({
-			.text = std::move(text),
-			.confirmed = [=](Fn<void()> close) {
-				PluginsRequest(u"delete"_q, QJsonObject{ { u"id"_q, id } });
-				refresh();
-				close();
-			},
-			.confirmText = tr::lng_box_delete(),
-			.confirmStyle = &st::attentionBoxButton,
-			.title = Phrase(u"Delete plugin"_q, u"Удалить плагин"_q),
-		}));
+		ConfirmDelete(show, id, name, refresh);
 	});
 	row->widthValue(
 	) | rpl::on_next([=](int width) {
@@ -637,7 +783,16 @@ void InstallBox(
 
 	const auto blocked = !PluginsOption(u"unknown_sources"_q);
 
-	AddRoundIcon(container, st::exteraInstallIcon);
+	const auto stickerShown = AddStickerIcon(
+		container,
+		std::make_shared<IconLoader>(),
+		info[u"icon"_q].toString(),
+		st::exteraInstallIconSize,
+		st::exteraInstallIconMargin,
+		true);
+	if (!stickerShown) {
+		AddRoundIcon(container, st::exteraInstallIcon);
+	}
 	container->add(
 		object_ptr<Ui::FlatLabel>(
 			container,
@@ -1017,9 +1172,7 @@ void SystemBox(not_null<Ui::GenericBox*> box, Fn<void()> changed) {
 	box->addButton(tr::lng_close(), [=] { box->closeBox(); });
 }
 
-} // namespace
-
-void PluginsBox(not_null<Ui::GenericBox*> box) {
+void NarrowPluginsBox(not_null<Ui::GenericBox*> box) {
 	box->setStyle(st::layerBox);
 	box->setTitle(Phrase(u"Plugins"_q, u"Плагины"_q));
 	box->setWidth(st::boxWideWidth);
@@ -1131,6 +1284,412 @@ void PluginsBox(not_null<Ui::GenericBox*> box) {
 		}
 	});
 	box->addButton(tr::lng_close(), [=] { box->closeBox(); });
+}
+
+void AddPluginRow(
+		not_null<Ui::VerticalLayout*> list,
+		std::shared_ptr<IconLoader> icons,
+		const QJsonObject &plugin,
+		bool selected,
+		Fn<void()> select,
+		Fn<void(bool)> toggled) {
+	const auto row = list->add(
+		object_ptr<Ui::AbstractButton>(list),
+		st::exteraRowMargin);
+	row->resize(row->width(), st::exteraRowHeight);
+
+	const auto state = row->lifetime().make_state<PluginRowState>();
+	state->title = Ui::Text::String(
+		st::exteraRowTitle,
+		plugin[u"name"_q].toString());
+	state->toggle = std::make_unique<Ui::ToggleView>(
+		(selected ? st::exteraToggle : st::defaultToggle),
+		plugin[u"enabled"_q].toBool(),
+		[=] { row->update(); });
+
+	const auto padding = st::exteraRowPadding;
+	const auto icon = CreatePluginIcon(
+		row,
+		icons,
+		plugin[u"icon"_q].toString(),
+		st::exteraRowIcon);
+	if (icon) {
+		icon->move(
+			padding.left(),
+			(st::exteraRowHeight - st::exteraRowIcon) / 2);
+	}
+	const auto textLeft = padding.left()
+		+ (icon ? (st::exteraRowIcon + st::exteraRowIconSkip) : 0);
+
+	row->paintRequest(
+	) | rpl::on_next([=] {
+		auto p = Painter(row);
+		if (selected) {
+			auto hq = PainterHighQualityEnabler(p);
+			p.setPen(Qt::NoPen);
+			p.setBrush(st::exteraCardBg);
+			p.drawRoundedRect(
+				row->rect(),
+				st::exteraRowRadius,
+				st::exteraRowRadius);
+		}
+		const auto size = state->toggle->getSize();
+		const auto toggleLeft = row->width()
+			- padding.right()
+			- size.width();
+		const auto available = toggleLeft
+			- st::exteraToggleRowSkip
+			- textLeft;
+		if (available > 0) {
+			const auto titleHeight = st::exteraRowTitle.font->height;
+			p.setPen(st::windowFg);
+			state->title.drawLeftElided(
+				p,
+				textLeft,
+				(row->height() - titleHeight) / 2,
+				available,
+				row->width());
+		}
+		state->toggle->paint(
+			p,
+			toggleLeft,
+			(row->height() - size.height()) / 2,
+			row->width());
+	}, row->lifetime());
+
+	row->setClickedCallback([=] {
+		const auto edge = row->width()
+			- padding.right()
+			- state->toggle->getSize().width()
+			- st::exteraToggleRowSkip;
+		if (row->mapFromGlobal(QCursor::pos()).x() < edge) {
+			select();
+			return;
+		}
+		const auto checked = !state->toggle->checked();
+		state->toggle->setChecked(checked, anim::type::normal);
+		toggled(checked);
+	});
+}
+
+void FillPluginDetails(
+		not_null<Ui::VerticalLayout*> details,
+		std::shared_ptr<Ui::Show> show,
+		std::shared_ptr<IconLoader> icons,
+		const QJsonObject &plugin,
+		Fn<void()> refresh,
+		Fn<void()> refreshDetails) {
+	const auto id = plugin[u"id"_q].toString();
+	const auto name = plugin[u"name"_q].toString();
+	const auto path = plugin[u"path"_q].toString();
+	const auto author = plugin[u"author"_q].toString();
+	const auto about = plugin[u"description"_q].toString();
+	const auto error = plugin[u"error"_q].toString();
+	const auto pinned = plugin[u"pinned"_q].toBool();
+
+	const auto withIcon = AddStickerIcon(
+		details,
+		icons,
+		plugin[u"icon"_q].toString(),
+		st::exteraDetailsIcon,
+		st::exteraDetailsIconMargin,
+		false);
+	details->add(
+		object_ptr<Ui::FlatLabel>(details, name, st::exteraDetailsName),
+		(withIcon
+			? st::exteraDetailsNameAfterIconMargin
+			: st::exteraDetailsNameMargin));
+	details->add(
+		object_ptr<Ui::FlatLabel>(
+			details,
+			(u"v"_q
+				+ plugin[u"version"_q].toString()
+				+ (author.isEmpty() ? QString() : (u" • "_q + author))),
+			st::exteraDetailsVersion),
+		st::exteraDetailsTextMargin);
+	if (!about.isEmpty()) {
+		details->add(
+			object_ptr<Ui::FlatLabel>(details, about, st::exteraPluginAbout),
+			st::exteraDetailsTextMargin);
+	}
+	if (!error.isEmpty()) {
+		details->add(
+			object_ptr<Ui::FlatLabel>(
+				details,
+				Phrase(u"Did not start: "_q, u"Не запустился: "_q) + error,
+				st::exteraPluginError),
+			st::exteraDetailsTextMargin);
+	}
+
+	Ui::AddDivider(details);
+	Ui::AddSkip(details);
+	Settings::AddButtonWithIcon(
+		details,
+		rpl::single(Phrase(u"Share"_q, u"Поделиться"_q)),
+		st::settingsButton,
+		{ &st::menuIconShare }
+	)->setClickedCallback([=] {
+		SharePlugin(path);
+	});
+	Settings::AddButtonWithIcon(
+		details,
+		rpl::single(Phrase(u"Open file"_q, u"Открыть файл"_q)),
+		st::settingsButton,
+		{ &st::menuIconNewWindow }
+	)->setClickedCallback([=] {
+		File::OpenWith(path, [=] { File::ShowInFolder(path); });
+	});
+	Settings::AddButtonWithIcon(
+		details,
+		rpl::single(pinned
+			? Phrase(u"Unpin"_q, u"Открепить"_q)
+			: Phrase(u"Pin"_q, u"Закрепить"_q)),
+		st::settingsButton,
+		{ pinned ? &st::menuIconUnpin : &st::menuIconPin }
+	)->setClickedCallback([=] {
+		PluginsRequest(u"set_pinned"_q, QJsonObject{
+			{ u"id"_q, id },
+			{ u"pinned"_q, !pinned },
+		});
+		refresh();
+	});
+	Settings::AddButtonWithIcon(
+		details,
+		rpl::single(Phrase(u"Delete plugin"_q, u"Удалить плагин"_q)),
+		st::settingsAttentionButtonWithIcon,
+		{ &st::menuIconDeleteAttention }
+	)->setClickedCallback([=] {
+		ConfirmDelete(show, id, name, refresh);
+	});
+	Ui::AddSkip(details);
+
+	if (plugin[u"has_settings"_q].toBool()) {
+		Ui::AddDivider(details);
+		Ui::AddSkip(details);
+		Ui::AddSubsectionTitle(details, rpl::single(Phrase(
+			u"Plugin settings"_q,
+			u"Настройки плагина"_q)));
+		AddSettings(details, show, id, refreshDetails);
+		Ui::AddSkip(details);
+	}
+}
+
+void WidePluginsBox(not_null<Ui::GenericBox*> box, int width) {
+	box->setStyle(st::layerBox);
+	box->setTitle(Phrase(u"Plugins"_q, u"Плагины"_q));
+	box->setWidth(width);
+	box->setMaxHeight(st::exteraWideHeight);
+
+	const auto container = box->verticalLayout();
+	const auto body = container->add(object_ptr<Ui::FixedHeightWidget>(
+		container,
+		st::exteraWideHeight));
+	const auto leftScroll = Ui::CreateChild<Ui::ScrollArea>(
+		body,
+		st::boxScroll);
+	const auto rightScroll = Ui::CreateChild<Ui::ScrollArea>(
+		body,
+		st::boxScroll);
+	const auto line = Ui::CreateChild<Ui::PlainShadow>(body);
+	const auto left = leftScroll->setOwnedWidget(
+		object_ptr<Ui::VerticalLayout>(leftScroll)).data();
+	const auto details = rightScroll->setOwnedWidget(
+		object_ptr<Ui::VerticalLayout>(rightScroll)).data();
+	leftScroll->show();
+	rightScroll->show();
+	line->show();
+	body->sizeValue(
+	) | rpl::on_next([=](QSize size) {
+		const auto leftWidth = st::exteraWideLeft;
+		const auto rightLeft = leftWidth + st::lineWidth;
+		const auto rightWidth = std::max(size.width() - rightLeft, 0);
+		leftScroll->setGeometry(0, 0, leftWidth, size.height());
+		line->setGeometry(leftWidth, 0, st::lineWidth, size.height());
+		rightScroll->setGeometry(rightLeft, 0, rightWidth, size.height());
+		left->resizeToWidth(leftWidth);
+		details->resizeToWidth(rightWidth);
+	}, body->lifetime());
+
+	const auto field = left->add(
+		object_ptr<Ui::InputField>(
+			left,
+			st::defaultInputField,
+			rpl::single(Phrase(u"Search"_q, u"Поиск"_q))),
+		st::exteraSearchFieldMargin);
+	const auto list = left->add(object_ptr<Ui::VerticalLayout>(left));
+	const auto show = box->uiShow();
+	const auto state = body->lifetime().make_state<WideState>();
+	state->icons = std::make_shared<IconLoader>();
+	const auto refreshDetails = [=] {
+		crl::on_main(body, [=] { state->rebuildDetails(); });
+	};
+	const auto refresh = [=] {
+		crl::on_main(body, [=] {
+			state->rebuildList();
+			state->rebuildDetails();
+		});
+	};
+
+	state->rebuildList = [=] {
+		list->clear();
+		if (!PluginsRunning()) {
+			Ui::AddDividerText(list, rpl::single(Phrase(
+				u"The plugin engine did not start: "_q,
+				u"Движок плагинов не запустился: "_q)
+				+ PluginsError()));
+			list->resizeToWidth(st::exteraWideLeft);
+			return;
+		}
+		AddToggleRow(list, {
+			.title = Phrase(
+				u"Plugin system"_q,
+				u"Система плагинов"_q),
+			.checked = PluginsOption(u"engine"_q),
+			.accent = true,
+		}, [=](bool enabled) {
+			SetPluginsOption(u"engine"_q, enabled);
+			refresh();
+		}, st::exteraRowMargin);
+		Ui::AddSkip(list);
+
+		auto found = false;
+		auto first = QString();
+		const auto plugins = PluginsRequest(u"list"_q).toArray();
+		for (const auto &value : plugins) {
+			const auto id = value.toObject()[u"id"_q].toString();
+			if (first.isEmpty()) {
+				first = id;
+			}
+			found = found || (id == state->selected);
+		}
+		if (!found) {
+			state->selected = first;
+		}
+		for (const auto &value : plugins) {
+			const auto plugin = value.toObject();
+			if (!Matches(plugin, state->query)) {
+				continue;
+			}
+			const auto id = plugin[u"id"_q].toString();
+			AddPluginRow(
+				list,
+				state->icons,
+				plugin,
+				(id == state->selected),
+				[=] {
+					state->selected = id;
+					refresh();
+				},
+				[=](bool enabled) {
+					auto failed = QString();
+					const auto info = PluginsRequest(
+						u"set_enabled"_q,
+						QJsonObject{
+							{ u"id"_q, id },
+							{ u"enabled"_q, enabled },
+						},
+						&failed).toObject();
+					const auto problem = failed.isEmpty()
+						? info[u"error"_q].toString()
+						: failed;
+					if (!problem.isEmpty()) {
+						show->showToast(problem);
+					}
+					refresh();
+				});
+		}
+
+		const auto actions = PluginsRequest(
+			u"menu"_q,
+			QJsonObject{ { u"location"_q, u"main_menu"_q } }).toArray();
+		if (!actions.isEmpty()) {
+			Ui::AddSkip(list);
+			Ui::AddSubsectionTitle(list, rpl::single(Phrase(
+				u"Plugin actions"_q,
+				u"Действия плагинов"_q)));
+			for (const auto &value : actions) {
+				const auto action = value.toObject();
+				const auto actionId = action[u"id"_q];
+				AddPlainButton(
+					list,
+					action[u"text"_q].toString()
+				)->setClickedCallback([=] {
+					PluginsRequest(
+						u"menu_click"_q,
+						QJsonObject{ { u"id"_q, actionId } });
+				});
+			}
+		}
+		Ui::AddSkip(list);
+		AddUnavailable(
+			list,
+			show,
+			Phrase(u"Plugin catalog"_q, u"Каталог плагинов"_q),
+			&st::menuIconShop,
+			false);
+		Ui::AddSkip(list);
+		list->resizeToWidth(st::exteraWideLeft);
+	};
+	state->rebuildDetails = [=] {
+		details->clear();
+		auto shown = false;
+		for (const auto &value : PluginsRequest(u"list"_q).toArray()) {
+			const auto plugin = value.toObject();
+			if (plugin[u"id"_q].toString() == state->selected) {
+				FillPluginDetails(
+					details,
+					show,
+					state->icons,
+					plugin,
+					refresh,
+					refreshDetails);
+				shown = true;
+				break;
+			}
+		}
+		if (!shown) {
+			details->add(
+				object_ptr<Ui::FlatLabel>(
+					details,
+					Phrase(
+						u"No plugins installed. Open a .plugin file in a "
+						u"chat or install one from a file."_q,
+						u"Плагины не установлены. Откройте файл .plugin в "
+						u"чате или установите плагин из файла."_q),
+					st::exteraCenterText),
+				st::exteraDetailsIconMargin);
+		}
+		if (const auto width = rightScroll->width()) {
+			details->resizeToWidth(width);
+		}
+	};
+	state->rebuildList();
+	state->rebuildDetails();
+
+	field->changes(
+	) | rpl::on_next([=] {
+		state->query = field->getLastText().trimmed();
+		state->rebuildList();
+	}, field->lifetime());
+
+	box->addTopButton(st::exteraBoxInfo, [=] {
+		show->showBox(Box(SystemBox, refresh));
+	});
+	box->addButton(tr::lng_close(), [=] { box->closeBox(); });
+}
+
+} // namespace
+
+void PluginsBox(not_null<Ui::GenericBox*> box) {
+	const auto window = Core::App().activeWindow();
+	const auto available = window
+		? (window->widget()->width() - 2 * st::exteraWideSkip)
+		: 0;
+	if (available >= st::exteraWideMinWidth) {
+		WidePluginsBox(box, std::min(available, st::exteraWideWidth));
+	} else {
+		NarrowPluginsBox(box);
+	}
 }
 
 void ShowInstallPlugin(

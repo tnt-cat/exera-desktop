@@ -183,7 +183,7 @@ def _info(entry):
     loaded = engine.plugins.get(meta["id"])
     return {
         "id": meta["id"], "name": meta["name"], "version": meta["version"],
-        "author": meta["author"], "description": meta["description"],
+        "author": meta["author"], "description": meta["description"], "icon": meta["icon"],
         "enabled": entry["enabled"], "status": entry["status"], "reason": entry["reason"],
         "error": entry["error"], "loaded": loaded is not None,
         "pinned": entry["pinned"], "path": entry["path"],
@@ -244,7 +244,7 @@ def inspect(path):
     old = _state["catalog"].get(meta["id"])
     return {
         "id": meta["id"], "name": meta["name"], "version": meta["version"],
-        "author": meta["author"], "description": meta["description"],
+        "author": meta["author"], "description": meta["description"], "icon": meta["icon"],
         "status": status, "reason": reason, "installed": old is not None,
         "old_version": old["meta"]["version"] if old else "",
     }

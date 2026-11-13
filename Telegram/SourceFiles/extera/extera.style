@@ -155,3 +155,40 @@ exteraInstallStatus: FlatLabel(exteraPluginAbout) {
 exteraInstallStatusMargin: margins(14px, 10px, 14px, 2px);
 exteraInstallReasonMargin: margins(14px, 0px, 14px, 10px);
 exteraInstallCheckMargin: margins(24px, 4px, 24px, 8px);
+
+exteraWideWidth: 720px;
+exteraWideMinWidth: 640px;
+exteraWideSkip: 24px;
+exteraWideHeight: 480px;
+exteraWideLeft: 250px;
+exteraSearchFieldMargin: margins(16px, 4px, 16px, 10px);
+exteraRowHeight: 44px;
+exteraRowRadius: 8px;
+exteraRowPadding: margins(12px, 0px, 12px, 0px);
+exteraRowMargin: margins(8px, 0px, 8px, 2px);
+exteraRowIcon: 28px;
+exteraRowIconSkip: 10px;
+exteraRowTitle: TextStyle(defaultTextStyle) {
+	font: font(14px);
+}
+exteraDetailsIcon: 56px;
+exteraDetailsIconMargin: margins(22px, 16px, 22px, 10px);
+exteraDetailsName: FlatLabel(defaultFlatLabel) {
+	minWidth: 100px;
+	align: align(topleft);
+	textFg: windowBoldFg;
+	style: TextStyle(semiboldTextStyle) {
+		font: font(17px semibold);
+	}
+}
+exteraDetailsNameMargin: margins(22px, 12px, 22px, 2px);
+exteraDetailsNameAfterIconMargin: margins(22px, 0px, 22px, 2px);
+exteraDetailsVersion: FlatLabel(defaultFlatLabel) {
+	minWidth: 100px;
+	align: align(topleft);
+	textFg: windowSubTextFg;
+	style: TextStyle(defaultTextStyle) {
+		font: font(13px);
+	}
+}
+exteraDetailsTextMargin: margins(22px, 0px, 22px, 12px);
