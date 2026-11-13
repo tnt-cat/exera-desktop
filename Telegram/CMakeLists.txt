@@ -969,6 +969,12 @@ PRIVATE
     export/view/export_view_settings.h
     export/view/export_view_top_bar.cpp
     export/view/export_view_top_bar.h
+    extera/extera_plugins.cpp
+    extera/extera_plugins.h
+    extera/extera_plugins_box.cpp
+    extera/extera_plugins_box.h
+    extera/extera_python.cpp
+    extera/extera_python.h
     history/admin_log/history_admin_log_filter.cpp
     history/admin_log/history_admin_log_filter.h
     history/admin_log/history_admin_log_inner.cpp

@@ -19,6 +19,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "calls/calls_instance.h"
 #include "core/application.h"
 #include "core/click_handler_types.h"
+#include "core/version.h"
+#include "extera/extera_plugins.h"
+#include "extera/extera_plugins_box.h"
 #include "data/data_changes.h"
 #include "data/data_document_media.h"
 #include "data/data_folder.h"
@@ -388,8 +391,8 @@ MainMenu::MainMenu(
 	parentResized();
 
 	_telegram->setMarkedText(tr::link(
-		u"Telegram Desktop"_q,
-		u"https://desktop.telegram.org"_q));
+		AppName.utf16(),
+		u"https://github.com/tnt-cat/exera-desktop"_q));
 	_telegram->setLinksTrusted();
 	// The canary version is too long for the "Version {version}" form.
 	_version->setMarkedText(
@@ -767,6 +770,12 @@ void MainMenu::setupMenu() {
 			_controller->session().supportTemplates().reload();
 		});
 	}
+	addAction(
+		rpl::single(Extera::Phrase(u"Plugins"_q, u"Плагины"_q)),
+		{ &st::menuIconCustomize }
+	)->setClickedCallback([=] {
+		controller->show(Box(Extera::PluginsBox));
+	});
 	addAction(
 		tr::lng_menu_settings(),
 		{ &st::menuIconSettings }

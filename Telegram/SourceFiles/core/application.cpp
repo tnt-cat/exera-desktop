@@ -88,6 +88,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "storage/localstorage.h"
 #include "payments/payments_checkout_process.h"
 #include "export/export_manager.h"
+#include "extera/extera_plugins.h"
 #include "wallet/wallet_panel.h"
 #include "webrtc/webrtc_environment.h"
 #include "webview/webview_interface.h"
@@ -454,6 +455,10 @@ void Application::run() {
 	}
 
 	_lastActivePrimaryWindow->updateIsActiveFocus();
+
+	crl::on_main(this, [] {
+		Extera::StartPlugins();
+	});
 
 	for (const auto &error : Shortcuts::Errors()) {
 		LOG(("Shortcuts Error: %1").arg(error));

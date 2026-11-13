@@ -25,5 +25,6 @@ constexpr auto AppShortName = "extera"_cs;
 constexpr auto AppFile = "extera"_cs;
 constexpr auto AppVersion = 7003005;
 constexpr auto AppVersionStr = "7.3.5";
+constexpr auto AppExteraVersionStr = "0.0.1";
 constexpr auto AppBetaVersion = false;
 constexpr auto AppAlphaVersion = TDESKTOP_ALPHA_VERSION;

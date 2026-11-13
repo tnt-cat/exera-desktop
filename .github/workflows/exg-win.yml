@@ -15,7 +15,6 @@ jobs:
 
     env:
       PREPARE_PATH: "Telegram/build/prepare/prepare.py"
-      ARTIFACT_NAME: "extera Desktop x64 Debug"
 
     defaults:
       run:
@@ -96,6 +95,23 @@ jobs:
           echo "Configurate git for cherry-picks."
           git config --global user.email "you@example.com"
           git config --global user.name "Sample"
+
+      - name: Plugin runtime.
+        shell: bash
+        run: |
+          VERSION=$(sed -n 's/.*AppExteraVersionStr = "\(.*\)";/\1/p' "$TBUILD/$REPO_NAME/Telegram/SourceFiles/core/version.h")
+          echo "EXTERA_ARTIFACT=extera Desktop $VERSION" >> $GITHUB_ENV
+
+          mkdir -p artifact/python artifact/extera
+          curl -sSL --retry 3 -o python.zip https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip
+          unzip -q python.zip -d artifact/python || 7z x -y -oartifact/python python.zip
+          python -m pip install --quiet --target artifact/python/Lib/site-packages --python-version 3.11 --platform win_amd64 --implementation cp --only-binary=:all: requests
+          cp -r "$TBUILD/$REPO_NAME/extera/sdk" artifact/extera/sdk
+
+          artifact/python/python.exe "$TBUILD/$REPO_NAME/extera/tests/test_engine.py"
+          artifact/python/python.exe "$TBUILD/$REPO_NAME/extera/tests/test_bridge.py"
+          artifact/python/python.exe -c "import sys; sys.path.append('artifact/python/Lib/site-packages'); import requests; print('requests', requests.__version__)"
+          find "$TBUILD/$REPO_NAME/extera" artifact -name __pycache__ -type d -prune -exec rm -rf {} +
 
       - uses: Eden-CI/msvc-dev-cmd@master
         name: Native Tools Command Prompt.
@@ -206,12 +222,12 @@ jobs:
       - name: Move artifact.
         run: |
           set OUT=%TBUILD%\%REPO_NAME%\out\Debug
-          mkdir artifact
+          if not exist artifact mkdir artifact
           move %OUT%\extera.exe artifact/
 
       - uses: actions/upload-artifact@v7
         name: Upload artifact.
         with:
-          name: ${{ env.ARTIFACT_NAME }}
+          name: ${{ env.EXTERA_ARTIFACT }}
           path: artifact\
           retention-days: 14

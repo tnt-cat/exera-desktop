@@ -161,7 +161,9 @@ QString telegramFaqLink() {
 namespace {
 
 [[nodiscard]] QString CurrentVersionText(bool withCommit) {
-	auto result = QString::fromLatin1(AppVersionStr);
+	auto result = QString::fromLatin1(AppVersionStr)
+		+ u" / "_q
+		+ QString::fromLatin1(AppExteraVersionStr);
 	if (Core::BuildIsCanary) {
 		result += Core::CanaryVersionSuffix();
 	} else if (cAlphaVersion()) {

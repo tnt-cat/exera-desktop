@@ -19,4 +19,21 @@ Method hooks are stored by their Java name, for example
 lists the names it can fire in `Host.method_hook_keys()` and calls
 `engine.fire_method_hook()` at the matching places.
 
-Run the tests with `python extera/tests/test_engine.py`.
+- `sdk/extera_bridge.py` is what the application calls: one `call(name, json)`
+  entry point for listing, installing, toggling and deleting plugins, running
+  the send hook and reading plugin settings. Its `Host` forwards toasts,
+  dialogs and messages to the application through the `_extera_host` module.
+- `sdk/extera_scan.py` reads a plugin file once on install and tells how much
+  of it can work on desktop: `works`, `partial`, `broken` or `phone`.
+
+The application side lives in `Telegram/SourceFiles/extera`. It loads
+`python/python311.dll` from the folder next to the executable at runtime, so
+the build itself does not depend on Python. The workflow puts the embeddable
+Python 3.11 and this SDK next to `extera.exe` in the artifact.
+
+The extera version is `AppExteraVersionStr` in `core/version.h`, shown next to
+the Telegram Desktop version it is based on. It goes up by 0.0.1 with every
+published build.
+
+Run the tests with `python extera/tests/test_engine.py` and
+`python extera/tests/test_bridge.py`.

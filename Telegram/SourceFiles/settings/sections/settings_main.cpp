@@ -23,6 +23,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/star_gift_box.h"
 #include "boxes/username_box.h"
 #include "core/application.h"
+#include "extera/extera_plugins.h"
+#include "extera/extera_plugins_box.h"
 #include "core/click_handler_types.h"
 #include "data/components/credits.h"
 #include "data/components/promo_suggestions.h"
@@ -455,6 +457,16 @@ void BuildSectionButtons(SectionBuilder &builder) {
 			controller->show(Box(PowerSavingBox, PowerSaving::Flags()));
 		},
 		.keywords = { u"battery"_q, u"animations"_q, u"power"_q, u"saving"_q },
+	});
+
+	builder.addButton({
+		.id = u"main/plugins"_q,
+		.title = rpl::single(Extera::Phrase(u"Plugins"_q, u"Плагины"_q)),
+		.icon = { &st::menuIconCustomize },
+		.onClick = [=] {
+			controller->show(Box(Extera::PluginsBox));
+		},
+		.keywords = { u"plugins"_q, u"extera"_q, u"плагины"_q },
 	});
 
 	builder.addButton({
