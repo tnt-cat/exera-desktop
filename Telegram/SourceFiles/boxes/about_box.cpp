@@ -36,10 +36,18 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace {
 
 rpl::producer<TextWithEntities> Text1() {
-	return tr::lng_about_extera(
-		lt_api_link,
-		tr::lng_about_text1_api(tr::url(u"https://core.telegram.org/api"_q)),
-		tr::marked);
+	const auto link = [] {
+		return tr::lng_about_text1_api(
+			tr::url(u"https://core.telegram.org/api"_q));
+	};
+	return rpl::combine(
+		tr::lng_about_extera(lt_api_link, link(), tr::marked),
+		tr::lng_about_extera_ru(lt_api_link, link(), tr::marked)
+	) | rpl::map([](
+			const TextWithEntities &en,
+			const TextWithEntities &ru) {
+		return Lang::Id().startsWith(u"ru"_q) ? ru : en;
+	});
 }
 
 rpl::producer<TextWithEntities> Text2() {

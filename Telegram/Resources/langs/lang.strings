@@ -392,7 +392,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_edit_caption_voice" = "Sorry, you can't edit messages when you have an unsent voice message.";
 
 "lng_intro_about" = "Welcome to the official Telegram Desktop app.\nIt's fast and secure.";
-"lng_intro_about_extera" = "Welcome to extera Desktop, an unofficial Telegram client.\nIt's fast and secure.";
+"lng_intro_about_extera" = "extera Desktop is an unofficial exteraGram build for PC by vixn_n.";
+"lng_intro_about_extera_ru" = "extera Desktop — неофициальная сборка exteraGram для ПК от vixn_n.";
 "lng_start_msgs" = "Start Messaging";
 
 "lng_intro_next" = "Next";
@@ -6064,7 +6065,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_about_version" = "version {version}";
 "lng_about_text1" = "Official free messaging app based on {api_link}\nfor speed and security.";
 "lng_about_text1_api" = "Telegram API";
-"lng_about_extera" = "Unofficial desktop port of exteraGram based on {api_link}.\nNot affiliated with Telegram or the exteraGram team.";
+"lng_about_extera" = "extera Desktop is an unofficial exteraGram build for PC by vixn_n, based on {api_link}.\nNot affiliated with Telegram or the exteraGram team.";
+"lng_about_extera_ru" = "extera Desktop — неофициальная сборка exteraGram для ПК от vixn_n на основе {api_link}.\nНе связана с Telegram и командой exteraGram.";
 "lng_about_text2" = "This software is licensed under {gpl_link} version 3.\nSource code is available on {github_link}.";
 "lng_about_text3" = "Visit the {faq_link} for more info.";
 "lng_about_text3_faq" = "Telegram FAQ";

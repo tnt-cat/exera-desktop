@@ -18,6 +18,18 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace Intro {
 namespace details {
+namespace {
+
+[[nodiscard]] rpl::producer<QString> AboutText() {
+	return rpl::combine(
+		tr::lng_intro_about_extera(),
+		tr::lng_intro_about_extera_ru()
+	) | rpl::map([](const QString &en, const QString &ru) {
+		return Lang::Id().startsWith(u"ru"_q) ? ru : en;
+	});
+}
+
+} // namespace
 
 StartWidget::StartWidget(
 	QWidget *parent,
@@ -26,7 +38,7 @@ StartWidget::StartWidget(
 : Step(parent, account, data, true) {
 	setMouseTracking(true);
 	setTitleText(rpl::single(AppName.utf16()));
-	setDescriptionText(tr::lng_intro_about_extera());
+	setDescriptionText(AboutText());
 	show();
 }
 
