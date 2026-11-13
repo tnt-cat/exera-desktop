@@ -124,6 +124,8 @@ class BridgeTest(unittest.TestCase):
         call("delete", id=installed["id"])
 
     def test_settings(self):
+        listed = {item["id"]: item for item in call("list")}
+        self.assertTrue(listed["hello_plugin"]["has_settings"])
         rows = call("settings", id="hello_plugin")
         self.assertTrue(rows)
         switch = next(row for row in rows if row["type"] == "switch")

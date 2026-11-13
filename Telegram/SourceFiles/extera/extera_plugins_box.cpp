@@ -445,19 +445,23 @@ void AddPluginButtons(
 		});
 		refresh();
 	});
-	add(st::exteraPluginSettings, [=] {
-		show->showBox(Box(PluginSettingsBox, id, name));
-	});
+	if (plugin[u"has_settings"_q].toBool()) {
+		add(st::exteraPluginSettings, [=] {
+			show->showBox(Box(PluginSettingsBox, id, name));
+		});
+	}
 
 	const auto remove = Ui::CreateChild<Ui::IconButton>(
 		row,
 		st::exteraPluginDelete);
 	remove->show();
 	remove->setClickedCallback([=] {
+		auto text = TextWithEntities{ Phrase(
+			u"Are you sure you want to delete "_q,
+			u"Вы уверены, что хотите удалить "_q) };
+		text.append(Ui::Text::Bold(name)).append(u"?"_q);
 		show->showBox(Ui::MakeConfirmBox({
-			.text = Phrase(
-				u"Delete the plugin \"%1\"?"_q,
-				u"Удалить плагин «%1»?"_q).arg(name),
+			.text = std::move(text),
 			.confirmed = [=](Fn<void()> close) {
 				PluginsRequest(u"delete"_q, QJsonObject{ { u"id"_q, id } });
 				refresh();
@@ -465,6 +469,7 @@ void AddPluginButtons(
 			},
 			.confirmText = tr::lng_box_delete(),
 			.confirmStyle = &st::attentionBoxButton,
+			.title = Phrase(u"Delete plugin"_q, u"Удалить плагин"_q),
 		}));
 	});
 	row->widthValue(

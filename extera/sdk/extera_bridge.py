@@ -187,6 +187,7 @@ def _info(entry):
         "enabled": entry["enabled"], "status": entry["status"], "reason": entry["reason"],
         "error": entry["error"], "loaded": loaded is not None,
         "pinned": entry["pinned"], "path": entry["path"],
+        "has_settings": bool(loaded and engine.settings_for(meta["id"])),
         "unsupported": list(loaded.unsupported) if loaded else [],
     }
 
