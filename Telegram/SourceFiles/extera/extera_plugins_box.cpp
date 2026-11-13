@@ -9,6 +9,7 @@ https://github.com/tnt-cat/exera-desktop/blob/exg/LEGAL
 
 #include "extera/extera_plugins.h"
 #include "api/api_common.h"
+#include "base/timer.h"
 #include "apiwrap.h"
 #include "core/application.h"
 #include "core/file_utilities.h"
@@ -55,6 +56,8 @@ https://github.com/tnt-cat/exera-desktop/blob/exg/LEGAL
 
 namespace Extera {
 namespace {
+
+constexpr auto kUnknownSourcesDelay = 30;
 
 struct ListState {
 	Fn<void()> rebuild;
@@ -252,7 +255,8 @@ void AddSettings(
 }
 
 not_null<Ui::VerticalLayout*> AddCard(
-		not_null<Ui::VerticalLayout*> container) {
+		not_null<Ui::VerticalLayout*> container,
+		style::color bg = st::exteraCardBg) {
 	const auto card = container->add(
 		object_ptr<Ui::VerticalLayout>(container),
 		st::exteraCardMargin);
@@ -261,13 +265,83 @@ not_null<Ui::VerticalLayout*> AddCard(
 		auto p = QPainter(card);
 		auto hq = PainterHighQualityEnabler(p);
 		p.setPen(Qt::NoPen);
-		p.setBrush(st::exteraCardBg);
+		p.setBrush(bg);
 		p.drawRoundedRect(
 			card->rect(),
 			st::exteraCardRadius,
 			st::exteraCardRadius);
 	}, card->lifetime());
 	return card;
+}
+
+void AddRoundIcon(
+		not_null<Ui::VerticalLayout*> container,
+		const style::icon &icon) {
+	const auto widget = container->add(
+		object_ptr<Ui::FixedHeightWidget>(
+			container,
+			st::exteraInstallIconSize),
+		st::exteraInstallIconMargin);
+	const auto shown = &icon;
+	widget->paintRequest(
+	) | rpl::on_next([=] {
+		auto p = QPainter(widget);
+		auto hq = PainterHighQualityEnabler(p);
+		const auto size = st::exteraInstallIconSize;
+		const auto rect = QRect((widget->width() - size) / 2, 0, size, size);
+		p.setPen(Qt::NoPen);
+		p.setBrush(st::windowBgActive);
+		p.drawEllipse(rect);
+		shown->paintInCenter(p, rect);
+	}, widget->lifetime());
+}
+
+void AddBadge(not_null<Ui::VerticalLayout*> container, const QString &text) {
+	const auto widget = container->add(
+		object_ptr<Ui::FixedHeightWidget>(container, st::exteraBadgeHeight),
+		st::exteraBadgeMargin);
+	widget->paintRequest(
+	) | rpl::on_next([=] {
+		auto p = QPainter(widget);
+		auto hq = PainterHighQualityEnabler(p);
+		const auto &font = st::exteraBadgeStyle.font;
+		const auto width = font->width(text) + 2 * st::exteraBadgeSkip;
+		const auto rect = QRect(
+			(widget->width() - width) / 2,
+			0,
+			width,
+			widget->height());
+		const auto radius = widget->height() / 2.;
+		p.setPen(Qt::NoPen);
+		p.setBrush(st::exteraBadgeBg);
+		p.drawRoundedRect(rect, radius, radius);
+		p.setFont(font);
+		p.setPen(st::attentionButtonFg);
+		p.drawText(rect, text, style::al_center);
+	}, widget->lifetime());
+}
+
+not_null<Ui::SettingsButton*> AddUnavailable(
+		not_null<Ui::VerticalLayout*> container,
+		std::shared_ptr<Ui::Show> show,
+		const QString &text,
+		const style::icon *icon,
+		bool toggle) {
+	const auto button = Settings::AddButtonWithIcon(
+		container,
+		rpl::single(text),
+		st::settingsButton,
+		{ icon });
+	if (toggle) {
+		button->toggleOn(rpl::single(false), true);
+	}
+	button->setColorOverride(st::windowSubTextFg->c);
+	button->setClickedCallback([=] {
+		show->showToast(Phrase(
+			u"Not available on PC yet."_q,
+			u"Пока недоступно на ПК."_q));
+	});
+	return button;
 }
 
 not_null<Ui::AbstractButton*> AddToggleRow(
@@ -561,23 +635,9 @@ void InstallBox(
 	const auto about = info[u"description"_q].toString();
 	const auto reason = info[u"reason"_q].toString();
 
-	const auto icon = container->add(
-		object_ptr<Ui::FixedHeightWidget>(
-			container,
-			st::exteraInstallIconSize),
-		st::exteraInstallIconMargin);
-	icon->paintRequest(
-	) | rpl::on_next([=] {
-		auto p = QPainter(icon);
-		auto hq = PainterHighQualityEnabler(p);
-		const auto size = st::exteraInstallIconSize;
-		const auto rect = QRect((icon->width() - size) / 2, 0, size, size);
-		p.setPen(Qt::NoPen);
-		p.setBrush(st::windowBgActive);
-		p.drawEllipse(rect);
-		st::exteraInstallIcon.paintInCenter(p, rect);
-	}, icon->lifetime());
+	const auto blocked = !PluginsOption(u"unknown_sources"_q);
 
+	AddRoundIcon(container, st::exteraInstallIcon);
 	container->add(
 		object_ptr<Ui::FlatLabel>(
 			container,
@@ -603,6 +663,9 @@ void InstallBox(
 			st::exteraInstallVersion),
 		st::exteraInstallVersionMargin,
 		style::al_top);
+	AddBadge(
+		container,
+		Phrase(u"Unknown source"_q, u"Неизвестный источник"_q));
 
 	if (!about.isEmpty()) {
 		const auto card = AddCard(container);
@@ -626,7 +689,7 @@ void InstallBox(
 			st::exteraInstallReasonMargin);
 	}
 
-	const auto enable = (!update && usable)
+	const auto enable = (!update && usable && !blocked)
 		? container->add(
 			object_ptr<Ui::Checkbox>(
 				container,
@@ -641,6 +704,21 @@ void InstallBox(
 	box->addTopButton(st::exteraBoxOpen, [=] {
 		File::OpenWith(path, [=] { File::ShowInFolder(path); });
 	});
+	if (blocked) {
+		container->add(
+			object_ptr<Ui::FlatLabel>(
+				container,
+				Phrase(
+					u"Allow unknown sources in the settings."_q,
+					u"Разрешите неизвестные источники в настройках."_q),
+				st::exteraCenterText),
+			st::exteraCenterTextMargin);
+		box->addButton(rpl::single(Phrase(
+			u"Installation blocked"_q,
+			u"Установка заблокирована"_q)), [] {});
+		box->addButton(tr::lng_cancel(), [=] { box->closeBox(); });
+		return;
+	}
 	box->addButton(rpl::single(update
 		? Phrase(u"Update"_q, u"Обновить"_q)
 		: Phrase(u"Install"_q, u"Установить"_q)), [=] {
@@ -667,6 +745,92 @@ void InstallBox(
 	box->addButton(tr::lng_cancel(), [=] { box->closeBox(); });
 }
 
+void UnknownSourcesBox(
+		not_null<Ui::GenericBox*> box,
+		Fn<void()> allowed) {
+	box->setStyle(st::layerBox);
+	box->setWidth(st::boxWideWidth);
+
+	const auto container = box->verticalLayout();
+	AddRoundIcon(container, st::exteraUnknownIcon);
+	container->add(
+		object_ptr<Ui::FlatLabel>(
+			container,
+			Phrase(u"Unknown sources"_q, u"Неизвестные источники"_q),
+			st::exteraInstallName),
+		st::exteraInstallNameMargin,
+		style::al_top);
+	container->add(
+		object_ptr<Ui::FlatLabel>(
+			container,
+			Phrase(
+				u"You agree to install plugins from unknown sources. "
+				u"Every plugin has:"_q,
+				u"Вы соглашаетесь на установку плагинов из неизвестных "
+				u"источников. Каждый плагин имеет:"_q),
+			st::exteraCenterText),
+		st::exteraCenterTextMargin);
+	const auto item = [&](const QString &title, const QString &about) {
+		auto text = Ui::Text::Bold(title);
+		text.append(u"\n"_q + about);
+		container->add(
+			object_ptr<Ui::FlatLabel>(
+				container,
+				rpl::single(std::move(text)),
+				st::exteraPluginAbout),
+			st::exteraUnknownItemMargin);
+	};
+	item(
+		Phrase(u"Full account access"_q, u"Полный доступ к аккаунту"_q),
+		Phrase(
+			u"Act on your behalf: read, send and delete messages."_q,
+			u"Работать от вашего имени: читать, отправлять и удалять "
+			u"сообщения."_q));
+	item(
+		Phrase(u"App files and data"_q, u"Файлы и данные приложения"_q),
+		Phrase(
+			u"Read the chats cache, media, settings and login data."_q,
+			u"Читать кэш переписок, медиа, настройки и данные "
+			u"авторизации."_q));
+	item(
+		Phrase(u"Unrestricted code"_q, u"Код без ограничений"_q),
+		Phrase(
+			u"Run any code and send anything to any server."_q,
+			u"Выполнять любой код и отправлять что угодно на любой "
+			u"сервер."_q));
+	const auto warning = AddCard(container, st::exteraBadgeBg);
+	warning->add(
+		object_ptr<Ui::FlatLabel>(
+			warning,
+			Phrase(
+				u"A malicious plugin can take over your account."_q,
+				u"Вредоносный плагин может захватить ваш аккаунт."_q),
+			st::exteraWarningText),
+		st::exteraInstallTextMargin);
+
+	const auto left = box->lifetime().make_state<rpl::variable<int>>(
+		kUnknownSourcesDelay);
+	const auto timer = box->lifetime().make_state<base::Timer>([=] {
+		if (left->current() > 0) {
+			*left = left->current() - 1;
+		}
+	});
+	timer->callEach(crl::time(1000));
+	const auto allow = Phrase(u"Allow"_q, u"Разрешить"_q);
+	box->addButton(left->value() | rpl::map([=](int seconds) {
+		return (seconds > 0)
+			? (allow + u" "_q + QString::number(seconds))
+			: allow;
+	}), [=] {
+		if (left->current() > 0) {
+			return;
+		}
+		allowed();
+		box->closeBox();
+	});
+	box->addButton(tr::lng_cancel(), [=] { box->closeBox(); });
+}
+
 void SystemBox(not_null<Ui::GenericBox*> box, Fn<void()> changed) {
 	box->setStyle(st::layerBox);
 	box->setTitle(Phrase(u"Plugin system"_q, u"Система плагинов"_q));
@@ -679,6 +843,58 @@ void SystemBox(not_null<Ui::GenericBox*> box, Fn<void()> changed) {
 	Ui::AddSubsectionTitle(container, rpl::single(Phrase(
 		u"Settings"_q,
 		u"Настройки"_q)));
+	AddUnavailable(
+		container,
+		show,
+		Phrase(u"Developer mode"_q, u"Режим разработчика"_q),
+		&st::menuIconSettings,
+		true);
+	AddUnavailable(
+		container,
+		show,
+		Phrase(u"Compact plugins view"_q, u"Компактный вид плагинов"_q),
+		&st::menuIconGroupLog,
+		true);
+	AddUnavailable(
+		container,
+		show,
+		Phrase(u"Compatibility mode"_q, u"Режим совместимости"_q),
+		&st::menuIconLink,
+		true);
+
+	const auto unknown = box->lifetime().make_state<rpl::variable<bool>>(
+		PluginsOption(u"unknown_sources"_q));
+	const auto sources = Settings::AddButtonWithIcon(
+		container,
+		rpl::single(Phrase(
+			u"Unknown sources"_q,
+			u"Неизвестные источники"_q)),
+		st::settingsButton,
+		{ &st::menuIconDownload }
+	)->toggleOn(unknown->value(), true);
+	sources->setClickedCallback([=] {
+		if (unknown->current()) {
+			SetPluginsOption(u"unknown_sources"_q, false);
+			*unknown = false;
+			return;
+		}
+		show->showBox(Box(UnknownSourcesBox, crl::guard(box.get(), [=] {
+			SetPluginsOption(u"unknown_sources"_q, true);
+			*unknown = true;
+		})));
+	});
+	Ui::AddSkip(container);
+	Ui::AddDividerText(container, rpl::single(Phrase(
+		u"Allow installing plugins from unverified sources."_q,
+		u"Разрешить установку плагинов из непроверенных источников."_q)));
+	Ui::AddSkip(container);
+
+	AddUnavailable(
+		container,
+		show,
+		Phrase(u"Static analysis"_q, u"Статический анализ"_q),
+		&st::menuIconAntispam,
+		true);
 	const auto confirm = Settings::AddButtonWithIcon(
 		container,
 		rpl::single(Phrase(
@@ -724,7 +940,44 @@ void SystemBox(not_null<Ui::GenericBox*> box, Fn<void()> changed) {
 		rpl::single(Phrase(u"Version"_q, u"Версия"_q)),
 		rpl::single(
 			PluginsRequest(u"about"_q).toObject()[u"sdk"_q].toString()),
-		st::settingsButtonNoIcon);
+		st::settingsButton);
+	AddUnavailable(
+		container,
+		show,
+		Phrase(u"Update automatically"_q, u"Обновлять автоматически"_q),
+		nullptr,
+		true);
+	AddUnavailable(
+		container,
+		show,
+		Phrase(u"Install beta versions"_q, u"Устанавливать бета-версии"_q),
+		nullptr,
+		true);
+	AddUnavailable(
+		container,
+		show,
+		Phrase(u"Check for updates"_q, u"Проверить наличие обновлений"_q),
+		&st::menuIconRestore,
+		false);
+
+	Ui::AddSkip(container);
+	Ui::AddDivider(container);
+	Ui::AddSkip(container);
+	Ui::AddSubsectionTitle(container, rpl::single(Phrase(
+		u"Links"_q,
+		u"Ссылки"_q)));
+	AddUnavailable(
+		container,
+		show,
+		Phrase(u"Documentation"_q, u"Документация"_q),
+		&st::menuIconFaq,
+		false);
+	AddUnavailable(
+		container,
+		show,
+		Phrase(u"Verified plugins"_q, u"Проверенные плагины"_q),
+		&st::menuIconAntispam,
+		false);
 
 	Ui::AddSkip(container);
 	Ui::AddDivider(container);
@@ -845,6 +1098,13 @@ void PluginsBox(not_null<Ui::GenericBox*> box) {
 			}
 			Ui::AddSkip(list);
 		}
+		AddUnavailable(
+			list,
+			show,
+			Phrase(u"Plugin catalog"_q, u"Каталог плагинов"_q),
+			&st::menuIconShop,
+			false);
+		Ui::AddSkip(list);
 
 		finish();
 	};

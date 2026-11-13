@@ -123,7 +123,29 @@ exteraInstallVersion: FlatLabel(defaultFlatLabel) {
 		font: font(13px);
 	}
 }
-exteraInstallVersionMargin: margins(24px, 0px, 24px, 16px);
+exteraInstallVersionMargin: margins(24px, 0px, 24px, 8px);
+exteraBadgeHeight: 28px;
+exteraBadgeSkip: 14px;
+exteraBadgeMargin: margins(0px, 0px, 0px, 14px);
+exteraBadgeBg: attentionButtonBgOver;
+exteraBadgeStyle: TextStyle(defaultTextStyle) {
+	font: font(13px);
+}
+exteraCenterText: FlatLabel(defaultFlatLabel) {
+	minWidth: 100px;
+	align: align(top);
+	textFg: windowSubTextFg;
+	style: TextStyle(defaultTextStyle) {
+		font: font(13px);
+		lineHeight: 19px;
+	}
+}
+exteraCenterTextMargin: margins(24px, 0px, 24px, 14px);
+exteraWarningText: FlatLabel(exteraCenterText) {
+	textFg: attentionButtonFg;
+}
+exteraUnknownIcon: icon {{ "menu/block", windowFgActive }};
+exteraUnknownItemMargin: margins(24px, 0px, 24px, 12px);
 exteraInstallTextMargin: margins(14px, 10px, 14px, 10px);
 exteraInstallStatus: FlatLabel(exteraPluginAbout) {
 	style: TextStyle(semiboldTextStyle) {
