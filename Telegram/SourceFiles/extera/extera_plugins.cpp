@@ -296,7 +296,9 @@ QString PluginsFolder() {
 
 bool PluginsOption(const QString &key) {
 	const auto value = Options.value(key);
-	return value.isBool() ? value.toBool() : (key != u"safe_mode"_q);
+	return value.isBool()
+		? value.toBool()
+		: (key != u"safe_mode"_q && key != u"unknown_sources"_q);
 }
 
 void SetPluginsOption(const QString &key, bool value) {
