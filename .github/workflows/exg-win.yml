@@ -1,16 +1,6 @@
 name: extera Windows.
 
 on:
-  push:
-    branches:
-      - exg
-    paths-ignore:
-      - 'docs/**'
-      - 'extera/**'
-      - '**.md'
-      - 'changelog.txt'
-      - 'LEGAL'
-      - 'LICENSE'
   workflow_dispatch:
 
 concurrency:
