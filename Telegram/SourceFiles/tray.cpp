@@ -108,7 +108,11 @@ void Tray::rebuildMenu() {
 			[=] { toggleSoundNotifications(); });
 	}
 
-	_tray.addAction(tr::lng_quit_from_tray(), [] { Core::Quit(); });
+	_tray.addAction(
+		tr::lng_quit_from_tray() | rpl::map([](QString text) {
+			return text.replace(u"Telegram"_q, AppShortName.utf16());
+		}),
+		[] { Core::Quit(); });
 
 	TrayAccountsMenu::Fill(_tray);
 
